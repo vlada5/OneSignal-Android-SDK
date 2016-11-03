@@ -78,6 +78,7 @@ import org.robolectric.shadows.ShadowConnectivityManager;
 import org.robolectric.shadows.ShadowLog;
 import org.robolectric.shadows.ShadowSystemClock;
 import org.robolectric.util.ActivityController;
+import org.robolectric.util.Scheduler;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -1444,13 +1445,12 @@ public class MainOneSignalClassRunner {
    }
 
    private static void threadAndTaskWait() throws InterruptedException {
-      boolean advancedRunnables;
-      boolean noNewThreads;
+      boolean createdNewThread;
       do {
-         noNewThreads = true;
-         boolean noRunningThreads;
+         createdNewThread = false;
+         boolean joinedAThread;
          do {
-            noRunningThreads = true;
+            joinedAThread = false;
 //            try {Thread.sleep(testSleepTime);} catch (Throwable t) {}
 
             Set<Thread> threadSet = Thread.getAllStackTraces().keySet();
@@ -1464,7 +1464,7 @@ public class MainOneSignalClassRunner {
                  // System.out.println("thread: " + thread);
                  // System.out.println("   state: " + thread.getState());
                   thread.join();
-                  noRunningThreads = noNewThreads = false;
+                  joinedAThread = createdNewThread = true;
                }
 //               else if (thread.getName().startsWith("OSH_") && !thread.getState().equals(Thread.State.WAITING))
 //                  noRunningThreads = noNewThreads = false;
@@ -1472,14 +1472,18 @@ public class MainOneSignalClassRunner {
 //               System.out.println("thread: " + thread);
 //               System.out.println("   state: " + thread.getState());
             }
-         } while (!noRunningThreads);
+         } while (joinedAThread);
 
-         advancedRunnables = OneSignalPackagePrivateHelper.runAllNetworkRunnables()
-                          || OneSignalPackagePrivateHelper.runFocusRunnables()
-                          || Robolectric.getForegroundThreadScheduler().advanceToLastPostedRunnable();
+         boolean advancedRunnables = OneSignalPackagePrivateHelper.runAllNetworkRunnables();
+         advancedRunnables = OneSignalPackagePrivateHelper.runFocusRunnables() || advancedRunnables;
+
+//         Scheduler scheduler = Robolectric.getForegroundThreadScheduler();
+//         if (scheduler != null)
+//            advancedRunnables = scheduler.advanceToLastPostedRunnable() || advancedRunnables;
+
          if (advancedRunnables)
-            noNewThreads = false;
-      } while (!noNewThreads);
+            createdNewThread = true;
+      } while (createdNewThread);
    }
 
    private void OneSignalInit() {
